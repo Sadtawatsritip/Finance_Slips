@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Finance Tracker - App</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Sarabun', 'sans-serif'],
+                    },
+                    colors: {
+                        gray: {
+                            50: '#FAFAFA',
+                            100: '#F5F5F5',
+                            200: '#E5E5E5',
+                            300: '#D4D4D4',
+                            800: '#262626',
+                            900: '#171717',
+                        }
+                    },
+                    animation: {
+                        'slide-up': 'slideUp 0.5s ease-out forwards',
+                        'bounce-slow': 'bounce 3s infinite',
+                    },
+                    keyframes: {
+                        slideUp: {
+                            '0%': { opacity: 0, transform: 'translateY(20px)' },
+                            '100%': { opacity: 1, transform: 'translateY(0)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background: linear-gradient(135deg, #f3e8ff 0%, #f8fafc 50%, #e0f2fe 100%);
+            background-attachment: fixed;
+            color: #1e293b;
+            -webkit-font-smoothing: antialiased;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(255,255,255,0.6);
+        }
+        .card-hover {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .card-hover:hover {
+            transform: translateY(-4px) scale(1.01);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            border-color: rgba(99, 102, 241, 0.2);
+        }
+        .loader {
+            border: 4px solid rgba(255, 255, 255, 0.3);
+            border-top: 4px solid #fff;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col font-sans relative">
+
+    <!-- Global Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-indigo-900/60 backdrop-blur-sm z-[100] hidden flex-col items-center justify-center transition-opacity">
+        <div class="loader mb-4"></div>
+        <p class="text-white font-medium animate-pulse" id="loadingText">กำลังประมวลผล...</p>
+    </div>
+
+    <div id="authView" class="min-h-screen flex items-center justify-center p-4 w-full z-50 transition-opacity">
+        <div class="bg-white/80 backdrop-blur-xl p-8 rounded-3xl border border-white/60 shadow-2xl w-full max-w-md relative overflow-hidden animate-slide-up">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl -mr-10 -mt-10"></div>
+            <div class="absolute bottom-0 left-0 w-32 h-32 bg-rose-500/10 rounded-full blur-3xl -ml-10 -mb-10"></div>
+            
+            <div class="text-center mb-8 relative">
+                <div class="w-16 h-16 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg mx-auto mb-4 transform hover:rotate-12 transition-transform">
+                    <i class="ph ph-wallet text-3xl"></i>
+                </div>
+                <h2 class="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-violet-600 to-indigo-600">FinTrack</h2>
+                <p class="text-gray-500 text-sm mt-1">เข้าสู่ระบบเพื่อจัดการการเงินของคุณ</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="loginForm" onsubmit="handleLogin(event)" class="space-y-5 relative">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">ชื่อผู้ใช้ (Username)</label>
+                    <div class="relative group">
+                        <i class="ph ph-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
+                        <input type="text" id="loginUsername" required class="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50/50 focus:bg-white focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all" placeholder="username">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">รหัสผ่าน (Password)</label>
+                    <div class="relative group">
+                        <i class="ph ph-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
+                        <input type="password" id="loginPassword" required class="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50/50 focus:bg-white focus:outline-none focus:border-indigo-300 focus:ring-2 focus:ring-indigo-100 transition-all" placeholder="••••••••">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white py-3 rounded-xl text-sm font-bold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                    เข้าสู่ระบบ <i class="ph ph-arrow-right"></i>
+                </button>
+                <p class="text-center text-sm text-gray-500 mt-4">
+                    ยังไม่มีบัญชี? <a href="#" onclick="toggleAuthMode('register')" class="text-indigo-600 font-bold hover:underline">สมัครสมาชิก</a>
+                </p>
+            </form>
+
+            <!-- Register Form -->
+            <form id="registerForm" onsubmit="handleRegister(event)" class="space-y-5 relative hidden">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">ชื่อแสดงผล (Display Name)</label>
+                    <div class="relative group">
+                        <i class="ph ph-identification-card absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors"></i>
+                        <input type="text" id="regDisplayName" required class="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50/50 focus:bg-white focus:outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 transition-all" placeholder="คุณสมชาย">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">ชื่อผู้ใช้ (Username)</label>
+                    <div class="relative group">
+                        <i class="ph ph-user absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors"></i>
+                        <input type="text" id="regUsername" required class="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50/50 focus:bg-white focus:outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 transition-all" placeholder="username">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1.5">รหัสผ่าน (Password)</label>
+                    <div class="relative group">
+                        <i class="ph ph-lock absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-emerald-500 transition-colors"></i>
+                        <input type="password" id="regPassword" required class="w-full pl-10 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50/50 focus:bg-white focus:outline-none focus:border-emerald-300 focus:ring-2 focus:ring-emerald-100 transition-all" placeholder="••••••••">
+                    </div>
+                </div>
+                <button type="submit" class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white py-3 rounded-xl text-sm font-bold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                    ยืนยันการสมัคร
+                </button>
+                <p class="text-center text-sm text-gray-500 mt-4">
+                    มีบัญชีอยู่แล้ว? <a href="#" onclick="toggleAuthMode('login')" class="text-indigo-600 font-bold hover:underline">เข้าสู่ระบบ</a>
+                </p>
+            </form>
+        </div>
+    </div>
+
+    <div id="dashboardView" class="hidden flex-col w-full flex-grow">
+        <nav class="glass-panel sticky top-0 z-20">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between h-16 items-center">
+                    <div class="flex items-center gap-2">
+                        <div class="w-9 h-9 bg-gradient-to-br from-violet-500 to-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md">
+                            <i class="ph ph-wallet text-xl"></i>
+                        </div>
+                        <span class="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-violet-600 to-indigo-600">Fin<span class="text-gray-400">Track</span></span>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <span class="text-sm text-gray-500 hidden sm:block font-medium user-display-name">สวัสดี</span>
+                        <button onclick="handleLogout()" class="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-rose-500 hover:bg-rose-50 hover:border-rose-200 transition-all shadow-sm hover:shadow" title="ออกจากระบบ">
+                            <i class="ph ph-sign-out text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <main class="flex-grow max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full space-y-8">
+            <!-- Summary Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Balance -->
+                <div class="glass-panel p-6 rounded-3xl border border-white/60 shadow-lg relative overflow-hidden card-hover group">
+                    <div class="absolute -right-4 -top-4 w-24 h-24 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-colors"></div>
+                    <p class="text-sm font-medium text-gray-500 mb-1">ยอดเงินคงเหลือ</p>
+                    <h3 id="stat-balance" class="text-4xl font-bold text-gray-900 tracking-tight relative z-10">0.00</h3>
+                </div>
+                <!-- Income -->
+                <div class="glass-panel p-6 rounded-3xl border border-white/60 shadow-lg relative overflow-hidden card-hover group">
+                     <div class="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-colors"></div>
+                    <div class="flex items-center gap-3 mb-1">
+                        <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600"><i class="ph ph-arrow-down-left text-lg"></i></div>
+                        <p class="text-sm font-medium text-gray-500">รายรับรวม</p>
+                    </div>
+                    <h3 id="stat-income" class="text-3xl font-bold text-emerald-600 tracking-tight relative z-10">0.00</h3>
+                </div>
+                <!-- Expense -->
+                <div class="glass-panel p-6 rounded-3xl border border-white/60 shadow-lg relative overflow-hidden card-hover group">
+                     <div class="absolute -right-4 -top-4 w-24 h-24 bg-rose-500/10 rounded-full blur-2xl group-hover:bg-rose-500/20 transition-colors"></div>
+                    <div class="flex items-center gap-3 mb-1">
+                        <div class="w-8 h-8 rounded-full bg-rose-100 flex items-center justify-center text-rose-600"><i class="ph ph-arrow-up-right text-lg"></i></div>
+                        <p class="text-sm font-medium text-gray-500">รายจ่ายรวม</p>
+                    </div>
+                    <h3 id="stat-expense" class="text-3xl font-bold text-rose-600 tracking-tight relative z-10">0.00</h3>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Income Chart -->
+                <div class="glass-panel p-6 rounded-3xl border border-white/60 shadow-lg card-hover">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> สัดส่วนรายรับ
+                    </h4>
+                    <div class="h-64 relative">
+                        <canvas id="incomeChart"></canvas>
+                        <div id="no-income-data" class="hidden absolute inset-0 flex items-center justify-center text-gray-400 text-sm">ไม่มีข้อมูลรายรับ</div>
+                    </div>
+                </div>
+                <!-- Expense Chart -->
+                <div class="glass-panel p-6 rounded-3xl border border-white/60 shadow-lg card-hover">
+                    <h4 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span> สัดส่วนรายจ่าย
+                    </h4>
+                    <div class="h-64 relative">
+                        <canvas id="expenseChart"></canvas>
+                        <div id="no-expense-data" class="hidden absolute inset-0 flex items-center justify-center text-gray-400 text-sm">ไม่มีข้อมูลรายจ่าย</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel rounded-3xl border border-white/60 shadow-lg overflow-hidden">
+                <div class="p-6 border-b border-gray-100/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/40">
+                    <div class="relative w-full sm:w-96 group">
+                        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors"></i>
+                        <input type="text" id="searchInput" placeholder="ค้นหารายการ..." class="w-full pl-10 pr-4 py-2.5 bg-white/60 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-300 transition-all placeholder-gray-400 backdrop-blur-sm">
+                    </div>
+                    <button onclick="openModal()" class="w-full sm:w-auto bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white px-6 py-2.5 rounded-2xl text-sm font-bold transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5 flex items-center justify-center gap-2">
+                        <i class="ph ph-plus-circle text-lg"></i> บันทึกรายการ
+                    </button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-100">
+                        <thead class="bg-gray-50/50 text-gray-500">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">วันที่</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">ประเภท</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">หมวดหมู่ & รายละเอียด</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider">จำนวนเงิน (฿)</th>
+                                <th scope="col" class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">หลักฐาน</th>
+                                <th scope="col" class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">จัดการ</th>
+                            </tr>
+                        </thead>
+                        <tbody id="transactionTable" class="bg-white/60 divide-y divide-gray-100/50 text-sm">
+                            <!-- Data rows -->
+                        </tbody>
+                    </table>
+                    <div id="emptyState" class="hidden p-12 text-center flex flex-col items-center">
+                        <div class="w-20 h-20 bg-indigo-50 rounded-full flex items-center justify-center mb-4 transform hover:scale-110 transition-transform">
+                            <i class="ph ph-receipt text-4xl text-indigo-300"></i>
+                        </div>
+                        <p class="text-gray-600 font-bold text-lg">ยังไม่มีรายการ</p>
+                        <p class="text-sm text-gray-400 mt-1">กดปุ่ม "บันทึกรายการ" เพื่อเริ่มต้นเลย!</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div> <!-- Close dashboardView -->
+
+    <div id="transactionModal" class="fixed inset-0 z-50 hidden opacity-0 transition-opacity duration-300" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-center min-h-screen p-4 text-center sm:p-0">
+            <div class="fixed inset-0 bg-indigo-900/40 backdrop-blur-sm transition-opacity" aria-hidden="true" onclick="closeModal()"></div>
+            
+            <div class="relative bg-white/95 backdrop-blur-xl rounded-3xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:max-w-lg w-full scale-95 duration-300 border border-white" id="modalPanel">
+                <form id="transactionForm" onsubmit="saveTransaction(event)">
+                    <div class="px-6 pt-6 pb-4 flex justify-between items-center border-b border-gray-100 bg-gradient-to-r from-gray-50/50 to-white">
+                        <h3 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+                            <i class="ph ph-receipt text-indigo-500"></i> บันทึกรายการใหม่
+                        </h3>
+                        <button type="button" onclick="closeModal()" class="text-gray-400 hover:text-rose-500 bg-white hover:bg-rose-50 rounded-full p-2 transition-all transform hover:rotate-90 shadow-sm hover:shadow">
+                            <i class="ph ph-x text-lg"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="p-6 space-y-5">
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">ประเภทรายการ</label>
+                            <div class="grid grid-cols-2 gap-2 bg-gray-50 p-1 rounded-lg border border-gray-200">
+                                <label class="cursor-pointer relative text-center">
+                                    <input type="radio" name="txType" value="expense" class="peer sr-only" checked onchange="updateCategories()">
+                                    <div class="py-2 text-sm font-medium rounded-md text-gray-500 peer-checked:bg-white peer-checked:text-rose-600 peer-checked:shadow-sm transition-all">
+                                        รายจ่าย
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer relative text-center">
+                                    <input type="radio" name="txType" value="income" class="peer sr-only" onchange="updateCategories()">
+                                    <div class="py-2 text-sm font-medium rounded-md text-gray-500 peer-checked:bg-white peer-checked:text-emerald-600 peer-checked:shadow-sm transition-all">
+                                        รายรับ
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 uppercase mb-1.5">วันที่</label>
+                                <input type="date" id="txDate" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-gray-800 focus:ring-1 focus:ring-gray-800">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-500 uppercase mb-1.5">หมวดหมู่</label>
+                                <select id="txCategory" required class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-gray-800 focus:ring-1 focus:ring-gray-800">
+                                    <!-- Options injected via JS -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase mb-1.5">จำนวนเงิน (บาท)</label>
+                            <div class="relative">
+                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-medium">฿</span>
+                                <input type="number" id="txAmount" min="0.01" step="0.01" required placeholder="0.00" class="w-full pl-8 pr-3 py-2 border border-gray-200 rounded-lg text-lg font-semibold bg-gray-50 focus:bg-white focus:outline-none focus:border-gray-800 focus:ring-1 focus:ring-gray-800">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase mb-1.5">รายละเอียด / บันทึก (Optional)</label>
+                            <input type="text" id="txNote" placeholder="เช่น ค่าอาหาร, โบนัส..." class="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:outline-none focus:border-gray-800 focus:ring-1 focus:ring-gray-800">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-500 uppercase mb-1.5">อัปโหลดสลิป (รูปภาพ)</label>
+                            <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border border-gray-200 border-dashed rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors group cursor-pointer relative overflow-hidden">
+                                <input type="file" id="txSlip" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" accept="image/png, image/jpeg, image/jpg" onchange="previewFileName()">
+                                <div class="space-y-1 text-center pointer-events-none" id="fileUploadPrompt">
+                                    <i class="ph ph-image text-3xl text-gray-400 group-hover:text-gray-600 transition-colors"></i>
+                                    <div class="text-sm text-gray-600">
+                                        <span class="font-medium text-gray-900">คลิกเพื่อเลือกไฟล์</span> หรือลากวาง
+                                    </div>
+                                    <p class="text-xs text-gray-400">PNG, JPG ไม่เกิน 2MB</p>
+                                </div>
+                                <div id="fileNameDisplay" class="hidden flex-col items-center justify-center w-full">
+                                    <i class="ph ph-file-image text-3xl text-indigo-500 mb-2"></i>
+                                    <p class="text-sm font-medium text-gray-800 truncate w-full text-center px-4" id="fileNameText">filename.jpg</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="px-6 py-4 bg-gray-50/80 border-t border-gray-100 flex justify-end gap-3 rounded-b-3xl">
+                        <button type="button" onclick="closeModal()" class="px-5 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl text-sm font-bold hover:bg-gray-100 hover:text-gray-900 transition-colors">
+                            ยกเลิก
+                        </button>
+                        <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-600 text-white rounded-xl text-sm font-bold hover:from-violet-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+                            บันทึกข้อมูล
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast" class="fixed bottom-5 right-5 transform translate-y-full opacity-0 transition-all duration-300 z-[110] flex items-center p-4 mb-4 w-full max-w-xs text-gray-500 bg-white rounded-lg shadow-xl border border-gray-100" role="alert">
+        <div id="toastIcon" class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 rounded-lg"></div>
+        <div id="toastMessage" class="ml-3 text-sm font-normal text-gray-800">Message here.</div>
+        <button type="button" onclick="hideToast()" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8">
+            <span class="sr-only">Close</span>
+            <i class="ph ph-x text-lg"></i>
+        </button>
+    </div>
+
+    <script>
+        // === ตั้งค่า URL ของ API (Google Apps Script Web App) ===
+        const API_URL = 'https://script.google.com/macros/s/AKfycbw9zIN4EJVQRr2BkmxRohLk51nk_Ak5exQBs8EXDf8hQ6jOehn4NCMDvz1taMJHk6xb/exec';
+
+        let currentUser = null;
+        let transactions = [];
+
+        const categories = {
+            expense: ['ค่าอาหาร', 'ค่าน้ำมัน/เดินทาง', 'ที่พัก/น้ำไฟ', 'ค่าโทรศัพท์', 'บันเทิง', 'สุขภาพ', 'อื่นๆ'],
+            income: ['เงินเดือน', 'งานพิเศษ', 'โบนัส', 'ดอกเบี้ย/ลงทุน', 'อื่นๆ']
+        };
+
+        let incChartInstance = null;
+        let expChartInstance = null;
+        const incomeColors = ['#10B981', '#34D399', '#059669', '#6EE7B7', '#047857'];
+        const expenseColors = ['#F43F5E', '#FB7185', '#E11D48', '#FDA4AF', '#BE123C', '#8B5CF6', '#F59E0B'];
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('txDate').valueAsDate = new Date();
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                renderTable(e.target.value);
+            });
+
+            // Check if user is already logged in (Local Storage)
+            const storedUser = localStorage.getItem('finTrackUser');
+            if (storedUser) {
+                currentUser = JSON.parse(storedUser);
+                showDashboard();
+            }
+        });
+
+        async function callAPI(action, payload, loadingMsg = 'กำลังประมวลผล...') {
+            showLoading(loadingMsg);
+            try {
+                // ส่งค่าเป็น text/plain แบบ POST เพื่อเลี่ยงปัญหา CORS Preflight ใน GAS
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    body: JSON.stringify({ action: action, payload: payload })
+                });
+                
+                const result = await response.json();
+                hideLoading();
+                return result;
+            } catch (error) {
+                hideLoading();
+                showToast('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้', 'error');
+                console.error("API Error:", error);
+                return { status: false, message: 'Connection Error' };
+            }
+        }
+
+        function showLoading(text) {
+            document.getElementById('loadingText').textContent = text;
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.remove('hidden');
+            overlay.classList.add('flex');
+        }
+
+        function hideLoading() {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.remove('flex');
+            overlay.classList.add('hidden');
+        }
+
+        let toastTimeout;
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const icon = document.getElementById('toastIcon');
+            document.getElementById('toastMessage').textContent = message;
+            
+            clearTimeout(toastTimeout);
+            
+            if (type === 'success') {
+                icon.className = 'inline-flex items-center justify-center flex-shrink-0 w-8 h-8 text-emerald-500 bg-emerald-100 rounded-lg';
+                icon.innerHTML = '<i class="ph ph-check-circle text-xl"></i>';
+            } else if (type === 'error') {
+                icon.className = 'inline-flex items-center justify-center flex-shrink-0 w-8 h-8 text-rose-500 bg-rose-100 rounded-lg';
+                icon.innerHTML = '<i class="ph ph-warning-circle text-xl"></i>';
+            }
+
+            toast.classList.remove('translate-y-full', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            toastTimeout = setTimeout(hideToast, 4000);
+        }
+
+        function hideToast() {
+            const toast = document.getElementById('toast');
+            toast.classList.remove('translate-y-0', 'opacity-100');
+            toast.classList.add('translate-y-full', 'opacity-0');
+        }
+
+        function toggleAuthMode(mode) {
+            if (mode === 'register') {
+                document.getElementById('loginForm').classList.add('hidden');
+                document.getElementById('registerForm').classList.remove('hidden');
+            } else {
+                document.getElementById('registerForm').classList.add('hidden');
+                document.getElementById('loginForm').classList.remove('hidden');
+            }
+        }
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            const res = await callAPI('login', { username, password }, 'กำลังเข้าสู่ระบบ...');
+            
+            if (res.status) {
+                currentUser = res.data;
+                localStorage.setItem('finTrackUser', JSON.stringify(currentUser));
+                showToast(res.message, 'success');
+                document.getElementById('loginForm').reset();
+                showDashboard();
+            } else {
+                showToast(res.message, 'error');
+            }
+        }
+
+        async function handleRegister(e) {
+            e.preventDefault();
+            const display_name = document.getElementById('regDisplayName').value;
+            const username = document.getElementById('regUsername').value;
+            const password = document.getElementById('regPassword').value;
+
+            const res = await callAPI('register', { username, password, display_name }, 'กำลังสมัครสมาชิก...');
+            
+            if (res.status) {
+                currentUser = res.data;
+                localStorage.setItem('finTrackUser', JSON.stringify(currentUser));
+                showToast(res.message, 'success');
+                document.getElementById('registerForm').reset();
+                showDashboard();
+            } else {
+                showToast(res.message, 'error');
+            }
+        }
+
+        function handleLogout() {
+            currentUser = null;
+            localStorage.removeItem('finTrackUser');
+            transactions = []; // Clear data
+            
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('dashboardView').classList.remove('flex');
+            document.getElementById('authView').classList.remove('hidden');
+        }
+
+        function showDashboard() {
+            document.getElementById('authView').classList.add('hidden');
+            document.getElementById('dashboardView').classList.remove('hidden');
+            document.getElementById('dashboardView').classList.add('flex');
+            document.querySelector('.user-display-name').textContent = 'สวัสดี, ' + currentUser.display_name;
+            
+            fetchTransactions();
+        }
+
+        async function fetchTransactions() {
+            if (!currentUser) return;
+            const res = await callAPI('getTransactions', { user_id: currentUser.user_id }, 'กำลังดึงข้อมูลของคุณ...');
+            if (res.status) {
+                transactions = res.data;
+                updateData();
+            } else {
+                showToast(res.message, 'error');
+            }
+        }
+
+        function updateData() {
+            renderStats();
+            renderCharts();
+            renderTable();
+        }
+
+        function renderStats() {
+            let totalIncome = 0;
+            let totalExpense = 0;
+
+            transactions.forEach(t => {
+                if (t.type === 'income') totalIncome += parseFloat(t.amount);
+                if (t.type === 'expense') totalExpense += parseFloat(t.amount);
+            });
+
+            const balance = totalIncome - totalExpense;
+
+            document.getElementById('stat-income').textContent = formatCurrency(totalIncome);
+            document.getElementById('stat-expense').textContent = formatCurrency(totalExpense);
+            
+            const balanceEl = document.getElementById('stat-balance');
+            balanceEl.textContent = formatCurrency(balance);
+            
+            if (balance > 0) {
+                balanceEl.className = "text-4xl font-bold text-gray-900 tracking-tight relative z-10";
+            } else if (balance < 0) {
+                balanceEl.className = "text-4xl font-bold text-rose-600 tracking-tight relative z-10";
+            } else {
+                balanceEl.className = "text-4xl font-bold text-gray-500 tracking-tight relative z-10";
+            }
+        }
+
+        function renderTable(filterQuery = '') {
+            const tbody = document.getElementById('transactionTable');
+            const emptyState = document.getElementById('emptyState');
+            tbody.innerHTML = '';
+            
+            let filtered = [...transactions];
+            if (filterQuery) {
+                const q = filterQuery.toLowerCase();
+                filtered = filtered.filter(t => 
+                    t.category.toLowerCase().includes(q) || 
+                    (t.note && t.note.toLowerCase().includes(q)) ||
+                    t.amount.toString().includes(q)
+                );
+            }
+
+            if (filtered.length === 0) {
+                tbody.parentNode.classList.add('hidden');
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            tbody.parentNode.classList.remove('hidden');
+            emptyState.classList.add('hidden');
+
+            filtered.forEach(tx => {
+                const isIncome = tx.type === 'income';
+                const amountClass = isIncome ? 'text-emerald-600' : 'text-gray-900';
+                const sign = isIncome ? '+' : '-';
+                
+                const typeBadge = isIncome 
+                    ? `<span class="px-3 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-700 border border-emerald-200">รายรับ</span>`
+                    : `<span class="px-3 py-1 rounded-full text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-200">รายจ่าย</span>`;
+
+                const slipIcon = tx.slip_url 
+                    ? `<a href="${tx.slip_url}" target="_blank" class="text-indigo-500 hover:text-indigo-700 hover:scale-125 transform inline-block transition-all" title="ดูรูปสลิป"><i class="ph ph-image text-xl"></i></a>` 
+                    : `<span class="text-gray-200">-</span>`;
+
+                const dateStr = new Date(tx.date).toLocaleDateString('th-TH', { day: '2-digit', month: 'short', year: '2-digit' });
+
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-indigo-50/40 transition-colors group";
+                tr.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-gray-500 font-medium">${dateStr}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${typeBadge}</td>
+                    <td class="px-6 py-4">
+                        <div class="font-bold text-gray-800">${tx.category}</div>
+                        ${tx.note ? `<div class="text-xs text-gray-400 mt-0.5">${tx.note}</div>` : ''}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right font-bold ${amountClass}">${sign} ${formatCurrency(tx.amount)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">${slipIcon}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                        <button onclick="deleteTx('${tx.id}')" class="text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all p-1.5" title="ลบรายการ">
+                            <i class="ph ph-trash text-lg"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderCharts() {
+            const incData = processChartData('income');
+            const expData = processChartData('expense');
+
+            if (incData.labels.length === 0) {
+                document.getElementById('incomeChart').style.display = 'none';
+                document.getElementById('no-income-data').classList.remove('hidden');
+            } else {
+                document.getElementById('incomeChart').style.display = 'block';
+                document.getElementById('no-income-data').classList.add('hidden');
+                if (incChartInstance) incChartInstance.destroy();
+                incChartInstance = new Chart(document.getElementById('incomeChart').getContext('2d'), {
+                    type: 'doughnut', data: { labels: incData.labels, datasets: [{ data: incData.values, backgroundColor: incomeColors, borderWidth: 2, borderColor: '#ffffff' }] },
+                    options: getChartOptions()
+                });
+            }
+
+            if (expData.labels.length === 0) {
+                document.getElementById('expenseChart').style.display = 'none';
+                document.getElementById('no-expense-data').classList.remove('hidden');
+            } else {
+                document.getElementById('expenseChart').style.display = 'block';
+                document.getElementById('no-expense-data').classList.add('hidden');
+                if (expChartInstance) expChartInstance.destroy();
+                expChartInstance = new Chart(document.getElementById('expenseChart').getContext('2d'), {
+                    type: 'doughnut', data: { labels: expData.labels, datasets: [{ data: expData.values, backgroundColor: expenseColors, borderWidth: 2, borderColor: '#ffffff' }] },
+                    options: getChartOptions()
+                });
+            }
+        }
+
+        function processChartData(type) {
+            const grouped = {};
+            transactions.filter(t => t.type === type).forEach(t => {
+                grouped[t.category] = (grouped[t.category] || 0) + parseFloat(t.amount);
+            });
+            return { labels: Object.keys(grouped), values: Object.values(grouped) };
+        }
+
+        function getChartOptions() {
+            return {
+                responsive: true, maintainAspectRatio: false, cutout: '65%',
+                plugins: {
+                    legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: { family: "'Inter', 'Sarabun', sans-serif", size: 12 }, color: '#737373' } },
+                    tooltip: { backgroundColor: '#171717', padding: 10, cornerRadius: 8, callbacks: { label: function(ctx) { return (ctx.label||'') + ': ' + formatCurrency(ctx.parsed) + ' ฿'; } } }
+                }
+            };
+        }
+
+        function formatCurrency(amount) {
+            return parseFloat(amount).toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+
+        function updateCategories() {
+            const type = document.querySelector('input[name="txType"]:checked').value;
+            const select = document.getElementById('txCategory');
+            select.innerHTML = '';
+            categories[type].forEach(cat => {
+                select.add(new Option(cat, cat));
+            });
+        }
+
+        function openModal() {
+            document.getElementById('transactionModal').classList.remove('hidden');
+            document.getElementById('transactionForm').reset();
+            document.getElementById('txDate').valueAsDate = new Date();
+            updateCategories();
+            document.getElementById('fileNameDisplay').classList.add('hidden');
+            document.getElementById('fileUploadPrompt').classList.remove('hidden');
+            
+            setTimeout(() => {
+                document.getElementById('transactionModal').classList.remove('opacity-0');
+                document.getElementById('modalPanel').classList.remove('scale-95');
+            }, 10);
+        }
+
+        function closeModal() {
+            document.getElementById('transactionModal').classList.add('opacity-0');
+            document.getElementById('modalPanel').classList.add('scale-95');
+            setTimeout(() => document.getElementById('transactionModal').classList.add('hidden'), 300);
+        }
+
+        function previewFileName() {
+            const fileInput = document.getElementById('txSlip');
+            const prompt = document.getElementById('fileUploadPrompt');
+            const display = document.getElementById('fileNameDisplay');
+            const nameText = document.getElementById('fileNameText');
+
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                if (file.size > 2 * 1024 * 1024) { // 2MB limit
+                    showToast('ไฟล์ขนาดใหญ่เกินไป (จำกัด 2MB)', 'error');
+                    fileInput.value = '';
+                    return;
+                }
+                nameText.textContent = file.name;
+                prompt.classList.add('hidden');
+                display.classList.remove('hidden');
+                display.classList.add('flex');
+            } else {
+                prompt.classList.remove('hidden');
+                display.classList.add('hidden');
+                display.classList.remove('flex');
+            }
+        }
+
+        // แปลงไฟล์เป็น Base64
+        function getBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        async function saveTransaction(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('txSlip');
+            let base64Data = null;
+            let mimeType = null;
+            let fileName = null;
+
+            if (fileInput.files.length > 0) {
+                const file = fileInput.files[0];
+                base64Data = await getBase64(file);
+                mimeType = file.type;
+                fileName = file.name;
+            }
+
+            const payload = {
+                user_id: currentUser.user_id,
+                date: document.getElementById('txDate').value,
+                type: document.querySelector('input[name="txType"]:checked').value,
+                category: document.getElementById('txCategory').value,
+                amount: parseFloat(document.getElementById('txAmount').value),
+                note: document.getElementById('txNote').value,
+                slip_base64: base64Data,
+                slip_mimetype: mimeType,
+                slip_filename: fileName
+            };
+
+            closeModal();
+            const res = await callAPI('addTransaction', payload, fileInput.files.length > 0 ? 'กำลังบันทึกและอัปโหลดรูปภาพ...' : 'กำลังบันทึกข้อมูล...');
+            
+            if (res.status) {
+                showToast(res.message, 'success');
+                fetchTransactions(); // โหลดข้อมูลใหม่ทั้งหมดมาวาดตารางและกราฟ
+            } else {
+                showToast(res.message, 'error');
+            }
+        }
+
+        async function deleteTx(transaction_id) {
+            // เลี่ยงการใช้ confirm() ตามกฎการออกแบบ Prototype
+            const res = await callAPI('deleteTransaction', { transaction_id: transaction_id, user_id: currentUser.user_id }, 'กำลังลบข้อมูล...');
+            if (res.status) {
+                showToast('ลบรายการสำเร็จ', 'success');
+                fetchTransactions();
+            } else {
+                showToast(res.message, 'error');
+            }
+        }
+    </script>
+</body>
+</html>
